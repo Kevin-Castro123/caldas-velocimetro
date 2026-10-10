@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Velocímetro CEF Android</title>
+<style>
+:root{
+  --gold:#c9a227; --white:#f5f5f2; --muted:#a9adb2;
+  --dark:rgba(8,10,12,.78); --red:#e45b5b;
+}
+*{box-sizing:border-box}
+html,body{width:100%;height:100%;margin:0;overflow:hidden;background:transparent;font-family:Arial,Helvetica,sans-serif}
+#hud{
+  position:fixed;right:max(14px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));
+  width:132px;height:76px;pointer-events:none;user-select:none;
+  filter:drop-shadow(0 8px 14px rgba(0,0,0,.45));
+}
+.gauge{position:absolute;right:0;bottom:0;width:72px;height:72px}
+.ring{
+  position:absolute;inset:0;border-radius:50%;
+  background:conic-gradient(from 225deg,var(--gold) 0deg,var(--gold) var(--speed-angle),rgba(255,255,255,.10) var(--speed-angle),rgba(255,255,255,.10) 270deg,transparent 270deg);
+  -webkit-mask:radial-gradient(circle,transparent 0 61%,#000 62% 68%,transparent 69%);
+  mask:radial-gradient(circle,transparent 0 61%,#000 62% 68%,transparent 69%);
+  transform:rotate(0deg);
+}
+.ticks{position:absolute;inset:5px;border-radius:50%;
+ background:repeating-conic-gradient(from 225deg,rgba(255,255,255,.65) 0deg 1deg,transparent 1deg 13.5deg);
+ -webkit-mask:radial-gradient(circle,transparent 0 78%,#000 79% 84%,transparent 85%);
+ mask:radial-gradient(circle,transparent 0 78%,#000 79% 84%,transparent 85%);
+ clip-path:polygon(0 0,100% 0,100% 100%,0 100%);
+ opacity:.65;
+}
+.center{
+ position:absolute;inset:12px;border-radius:50%;background:radial-gradient(circle at 50% 42%,rgba(39,43,48,.92),rgba(8,10,12,.94));
+ border:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;align-items:center;justify-content:center;
+}
+.speed{font-size:19px;line-height:.9;font-weight:900;letter-spacing:-3px;color:var(--white);font-variant-numeric:tabular-nums}
+.kmh{font-size:5px;font-weight:800;letter-spacing:.7px;color:var(--muted);margin-top:6px}
+.info{
+ position:absolute;left:0;bottom:13px;width:52px;padding:5px 5px;border-radius:7px;
+ background:linear-gradient(145deg,rgba(29,32,36,.86),var(--dark));border:1px solid rgba(255,255,255,.10);
+ backdrop-filter:blur(6px);
+}
+.row{margin-bottom:5px}.row:last-child{margin-bottom:0}
+.label{display:flex;align-items:center;justify-content:space-between;font-size:4px;font-weight:800;color:var(--muted);letter-spacing:.6px;margin-bottom:5px}
+.label strong{font-size:5px;color:var(--white)}
+.icon{width:6px;height:6px;display:inline-grid;place-items:center;margin-right:3px;color:var(--gold)}
+.track{height:3px;background:rgba(255,255,255,.09);border-radius:10px;overflow:hidden}
+.fill{height:100%;width:100%;background:var(--gold);border-radius:inherit;transition:width .18s linear}
+#healthBar{background:var(--white)}
+.low{background:var(--red)!important}
+.engine{
+ position:absolute;right:17px;bottom:2px;display:flex;align-items:center;gap:2px;font-size:4px;font-weight:800;letter-spacing:.5px;color:var(--muted)
+}
+.dot{width:3px;height:3px;border-radius:50%;background:#65dc8a;box-shadow:0 0 6px rgba(101,220,138,.7)}
+@media(max-width:700px){
+ #hud{width:132px;height:76px;right:7px;bottom:8px}
+ .gauge{width:72px;height:72px;right:0;bottom:0}
+ .center{inset:12px}
+ .speed{font-size:19px}
+ .info{width:52px;left:0;bottom:13px;padding:5px}
+ .engine{right:17px;bottom:2px}
+}
+</style>
+</head>
+<body>
+<div id="hud">
+  <div class="info">
+    <div class="row">
+      <div class="label"><span><span class="icon">⛽</span>FUEL</span><strong id="fuelText">100%</strong></div>
+      <div class="track"><div class="fill" id="fuelBar"></div></div>
+    </div>
+    <div class="row">
+      <div class="label"><span><span class="icon">♥</span>AUTO</span><strong id="healthText">100%</strong></div>
+      <div class="track"><div class="fill" id="healthBar"></div></div>
+    </div>
+  </div>
+
+  <div class="gauge">
+    <div class="ring" id="ring"></div>
+    <div class="ticks"></div>
+    <div class="center">
+      <div class="speed" id="speed">000</div>
+      <div class="kmh">KM/H</div>
+    </div>
+  </div>
+
+  <div class="engine"><i class="dot" id="engineDot"></i><span id="engineText">MOTOR</span></div>
+</div>
+
+<script>
+const clamp=(n,a,b)=>Math.max(a,Math.min(b,Number(n)||0));
+
+window.setVehicleHUD=function(speed,fuel,health,engine=true){
+  speed=clamp(speed,0,999); fuel=clamp(fuel,0,100); health=clamp(health,0,100);
+  document.getElementById("speed").textContent=Math.round(speed).toString().padStart(3,"0");
+
+  const angle=clamp(speed/220,0,1)*270;
+  document.getElementById("ring").style.setProperty("--speed-angle",angle+"deg");
+
+  document.getElementById("fuelText").textContent=Math.round(fuel)+"%";
+  document.getElementById("fuelBar").style.width=fuel+"%";
+  document.getElementById("fuelBar").classList.toggle("low",fuel<=15);
+
+  document.getElementById("healthText").textContent=Math.round(health)+"%";
+  document.getElementById("healthBar").style.width=health+"%";
+  document.getElementById("healthBar").classList.toggle("low",health<=25);
+
+  document.getElementById("engineDot").classList.toggle("low",!engine);
+  document.getElementById("engineText").textContent=engine?"MOTOR":"OFF";
+};
+
+window.showVehicleHUD=function(show=true){
+  document.getElementById("hud").style.display=show?"block":"none";
+};
+
+// Recibe los datos enviados por la GM a traves de SAMPMobileCef.inc.
+// El evento del servidor se llama "vehicleHudUpdate".
+window.vehicleHudUpdate = function(payload) {
+  if (typeof payload === "string") {
+    try { payload = JSON.parse(payload); } catch (e) { return; }
+  }
+  if (!payload || typeof payload !== "object") return;
+  window.setVehicleHUD(payload.speed, payload.fuel, payload.health, payload.engine === true || payload.engine === 1 || payload.engine === "true");
+};
+
+// Registrar el evento con la API de SAMPMobileCef (si la biblioteca ya está disponible).
+if (window.Cef && typeof window.Cef.registerEventCallback === "function") {
+  window.Cef.registerEventCallback("vehicleHudUpdate", "vehicleHudUpdate");
+}
+
+// No mostrar datos falsos al iniciar: el HUD se actualiza cuando llega el primer evento real.
+window.setVehicleHUD(0, 0, 100, false);
+</script>
+</body>
+</html>
